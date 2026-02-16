@@ -19,7 +19,16 @@ static ErlNifResourceType* appender_nif_type = nullptr;
 template<class T>
 struct erlang_resource {
   std::unique_ptr<T> data;
+
+  erlang_resource(std::unique_ptr<T> d)
+      : data(std::move(d)) {}
 };
+
+template<class T>
+static void resource_destructor(ErlNifEnv*, void* arg) {
+  auto* resource = static_cast<erlang_resource<T>*>(arg);
+  resource->~erlang_resource<T>();
+}
 
 /*
  * Erlang resource builder
@@ -32,28 +41,25 @@ class ErlangResourceBuilder {
 
     ErlangResourceBuilder(ErlNifResourceType* resource_type, duckdb::unique_ptr<Data> data)
       : resource(static_cast<Resource*>(enif_alloc_resource(resource_type, sizeof(Resource)))) {
-      if (resource) {
-        memset(resource, 0, sizeof(Resource));
-        resource->data = std::move(data);
-      } else {
-        throw std::runtime_error("out of memory");
+      if (!resource) {
+        throw std::bad_alloc();
       }
+
+      new (resource) Resource(std::move(data));
     }
 
     template <typename... Args>
     ErlangResourceBuilder(ErlNifResourceType* resource_type, Args&&... args)
       : resource(static_cast<Resource*>(enif_alloc_resource(resource_type, sizeof(Resource)))) {
-      if (resource) {
-        memset(resource, 0, sizeof(Resource));
-        resource->data = duckdb::make_uniq<Data>(std::forward<Args>(args)...);
-      } else {
-        throw std::runtime_error("out of memory");
+      if (!resource) {
+        throw std::bad_alloc();
       }
+
+      new (resource) Resource(duckdb::make_uniq<Data>(std::forward<Args>(args)...));
     }
 
     ~ErlangResourceBuilder() {
       if (resource) {
-        resource->data = nullptr;
         enif_release_resource(resource);
         resource = nullptr;
       }
@@ -85,7 +91,7 @@ template <class T>
 erlang_resource<T>* get_resource(ErlNifEnv* env, ERL_NIF_TERM term);
 
 template <>
-erlang_resource<duckdb::DuckDB>* get_resource(ErlNifEnv* env, ERL_NIF_TERM term) {
+inline erlang_resource<duckdb::DuckDB>* get_resource(ErlNifEnv* env, ERL_NIF_TERM term) {
   erlang_resource<duckdb::DuckDB>* resource = nullptr;
   if(enif_get_resource(env, term, database_nif_type, (void**)&resource) && resource->data)
     return resource;
@@ -93,7 +99,7 @@ erlang_resource<duckdb::DuckDB>* get_resource(ErlNifEnv* env, ERL_NIF_TERM term)
 }
 
 template <>
-erlang_resource<duckdb::Connection>* get_resource(ErlNifEnv* env, ERL_NIF_TERM term) {
+inline erlang_resource<duckdb::Connection>* get_resource(ErlNifEnv* env, ERL_NIF_TERM term) {
   erlang_resource<duckdb::Connection>* resource = nullptr;
   if(enif_get_resource(env, term, connection_nif_type, (void**)&resource) && resource->data)
     return resource;
@@ -101,7 +107,7 @@ erlang_resource<duckdb::Connection>* get_resource(ErlNifEnv* env, ERL_NIF_TERM t
 }
 
 template <>
-erlang_resource<duckdb::QueryResult>* get_resource(ErlNifEnv* env, ERL_NIF_TERM term) {
+inline erlang_resource<duckdb::QueryResult>* get_resource(ErlNifEnv* env, ERL_NIF_TERM term) {
   erlang_resource<duckdb::QueryResult>* resource = nullptr;
   if(enif_get_resource(env, term, query_result_nif_type, (void**)&resource) && resource->data)
     return resource;
@@ -109,7 +115,7 @@ erlang_resource<duckdb::QueryResult>* get_resource(ErlNifEnv* env, ERL_NIF_TERM 
 }
 
 template <>
-erlang_resource<duckdb::PreparedStatement>* get_resource(ErlNifEnv* env, ERL_NIF_TERM term) {
+inline erlang_resource<duckdb::PreparedStatement>* get_resource(ErlNifEnv* env, ERL_NIF_TERM term) {
   erlang_resource<duckdb::PreparedStatement>* resource = nullptr;
   if(enif_get_resource(env, term, prepared_statement_nif_type, (void**)&resource) && resource->data)
     return resource;
@@ -117,7 +123,7 @@ erlang_resource<duckdb::PreparedStatement>* get_resource(ErlNifEnv* env, ERL_NIF
 }
 
 template <>
-erlang_resource<duckdb::Appender>* get_resource(ErlNifEnv* env, ERL_NIF_TERM term) {
+inline erlang_resource<duckdb::Appender>* get_resource(ErlNifEnv* env, ERL_NIF_TERM term) {
   erlang_resource<duckdb::Appender>* resource = nullptr;
   if(enif_get_resource(env, term, appender_nif_type, (void**)&resource) && resource->data)
     return resource;

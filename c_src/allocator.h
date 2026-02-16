@@ -3,7 +3,7 @@
 #include "duckdb.hpp"
 
 namespace nif {
-  duckdb::data_ptr_t eddb_allocate(duckdb::PrivateAllocatorData *private_data, duckdb::idx_t n) {
+  inline duckdb::data_ptr_t eddb_allocate(duckdb::PrivateAllocatorData *private_data, duckdb::idx_t n) {
     if(n > std::size_t(-1) / sizeof(duckdb::data_t))
       throw std::bad_alloc();
 
@@ -13,11 +13,11 @@ namespace nif {
     throw std::bad_alloc();
   }
 
-  void eddb_free(duckdb::PrivateAllocatorData *private_data, duckdb::data_ptr_t p, duckdb::idx_t n) {
+  inline void eddb_free(duckdb::PrivateAllocatorData *private_data, duckdb::data_ptr_t p, duckdb::idx_t n) {
     enif_free(p);
   }
 
-  duckdb::data_ptr_t eddb_reallocate(duckdb::PrivateAllocatorData *private_data, duckdb::data_ptr_t p, duckdb::idx_t old_size, duckdb::idx_t n) {
+  inline duckdb::data_ptr_t eddb_reallocate(duckdb::PrivateAllocatorData *private_data, duckdb::data_ptr_t p, duckdb::idx_t old_size, duckdb::idx_t n) {
     if(auto rp = static_cast<duckdb::data_ptr_t>(enif_realloc(p, n * sizeof(duckdb::data_t))))
       return rp;
 
