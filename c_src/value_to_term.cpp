@@ -134,7 +134,18 @@ bool nif::value_to_term(ErlNifEnv* env, const duckdb::Value& value, ERL_NIF_TERM
 
     case duckdb::LogicalTypeId::FLOAT: {
         auto a_float = value.GetValueUnsafe<float>();
-        sink = enif_make_double(env, a_float);
+
+        if (std::isinf(a_float)) {
+            if (a_float > 0) {
+                sink = make_atom(env, "infinity");
+            } else {
+                sink = make_atom(env, "-infinity");
+            }
+        } else if (std::isnan(a_float)) {
+            sink = make_atom(env, "nan");
+        } else {
+            sink = enif_make_double(env, a_float);
+        }
         return true;
       }
     case duckdb::LogicalTypeId::SMALLINT: {
