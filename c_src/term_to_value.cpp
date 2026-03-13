@@ -1,8 +1,6 @@
 #include "term_to_value.h"
 #include "duckdb.hpp"
-#include "map_iterator.h"
 #include "term.h"
-#include <iostream>
 
 namespace {
   template <class T>

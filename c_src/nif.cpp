@@ -6,7 +6,6 @@
 #include "duckdb.hpp"
 #include <erl_nif.h>
 #include <string>
-#include <iostream>
 
 /*
  * DuckDB API
@@ -631,40 +630,6 @@ release(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 }
 
 /*
- * Resources destructors
- */
-
-static void
-database_type_destructor(ErlNifEnv* env, void* arg) {
-  erlang_resource<duckdb::DuckDB>* resource = static_cast<erlang_resource<duckdb::DuckDB>*>(arg);
-  resource->data = nullptr;
-}
-
-static void
-connection_type_destructor(ErlNifEnv* env, void* arg) {
-  erlang_resource<duckdb::Connection>* resource = static_cast<erlang_resource<duckdb::Connection>*>(arg);
-  resource->data = nullptr;
-}
-
-static void
-appender_type_destructor(ErlNifEnv* env, void* arg) {
-  erlang_resource<duckdb::Appender>* resource = static_cast<erlang_resource<duckdb::Appender>*>(arg);
-  resource->data = nullptr;
-}
-
-static void
-query_result_type_destructor(ErlNifEnv* env, void* arg) {
-  erlang_resource<duckdb::QueryResult>* resource = static_cast<erlang_resource<duckdb::QueryResult>*>(arg);
-  resource->data = nullptr;
-}
-
-static void
-prepared_statement_type_destructor(ErlNifEnv* env, void* arg) {
-  erlang_resource<duckdb::PreparedStatement>* resource = static_cast<erlang_resource<duckdb::PreparedStatement>*>(arg);
-  resource->data = nullptr;
-}
-
-/*
  * Load the nif. Initialize some stuff
  */
 static int
@@ -673,7 +638,7 @@ on_load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
     env,
     "duckdbex",
     "database_nif_type",
-    database_type_destructor,
+    resource_destructor<duckdb::DuckDB>,
     ERL_NIF_RT_CREATE,
     NULL);
 
@@ -685,7 +650,7 @@ on_load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
     env,
     "duckdbex",
     "connection_nif_type",
-    connection_type_destructor,
+    resource_destructor<duckdb::Connection>,
     ERL_NIF_RT_CREATE,
     NULL);
 
@@ -697,7 +662,7 @@ on_load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
     env,
     "duckdbex",
     "appender_nif_type",
-    appender_type_destructor,
+    resource_destructor<duckdb::Appender>,
     ERL_NIF_RT_CREATE,
     NULL);
 
@@ -709,7 +674,7 @@ on_load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
     env,
     "duckdbex",
     "query_result_nif_type",
-    query_result_type_destructor,
+    resource_destructor<duckdb::QueryResult>,
     ERL_NIF_RT_CREATE,
     NULL);
 
@@ -721,7 +686,7 @@ on_load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
     env,
     "duckdbex",
     "prepared_statement_nif_type",
-    prepared_statement_type_destructor,
+    resource_destructor<duckdb::PreparedStatement>,
     ERL_NIF_RT_CREATE,
     NULL);
 

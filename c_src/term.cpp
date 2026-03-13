@@ -1,6 +1,7 @@
 #include "term.h"
-#include "duckdb.hpp"
+#include <cassert>
 #include <erl_nif.h>
+#include <vector>
 
 const int64_t POWERS_OF_TEN[] {1,
                               10,
@@ -45,7 +46,7 @@ nif::make_atom(ErlNifEnv* env, const char* atom_name) {
 ERL_NIF_TERM
 nif::make_atom(ErlNifEnv* env, const std::string& atom_name) {
   assert(env);
-  assert(atom_name);
+  assert(!atom_name.empty());
 
   ERL_NIF_TERM atom;
 
