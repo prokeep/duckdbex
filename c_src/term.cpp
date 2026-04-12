@@ -1,5 +1,6 @@
 #include "term.h"
 #include <cassert>
+#include <cstring>
 #include <erl_nif.h>
 #include <vector>
 
@@ -90,7 +91,7 @@ nif::make_binary_term(ErlNifEnv* env, const char* cstr, size_t len) {
 
   if(cstr) {
     ERL_NIF_TERM result;
-    memcpy(enif_make_new_binary(env, len, &result), cstr, len);
+    std::memcpy(enif_make_new_binary(env, len, &result), cstr, len);
     return result;
   } else {
     return enif_make_atom(env, "nil");
