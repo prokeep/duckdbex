@@ -22,7 +22,7 @@ by adding `duckdbex` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:duckdbex, "~> 0.3.9"}
+    {:duckdbex, "~> 0.4.0"}
   ]
 end
 ```
@@ -54,11 +54,32 @@ If you do not specify any database file the database will be created in the memo
 {:ok, db} = Duckdbex.open()
 ```
 
-The DuckDB has a number of different options and could be configured by passing the `Duckdbex.Config` struct into the `Duckdbex.open/1` or `Duckdbex.open/2`.
+DuckDB has a number of configuration options. In Duckdbex you can create a config reference, set options on it, and then pass that config into `Duckdbex.open/1` or `Duckdbex.open/2`.
 
 ```elixir
-{:ok, _db} = Duckdbex.open(%Duckdbex.Config{checkpoint_wal_size: 8388608})
+{:ok, config} = Duckdbex.create_config()
+:ok = Duckdbex.set_config_option(config, "checkpoint_threshold", "8MB")
+{:ok, _db} = Duckdbex.open(config)
 ```
+
+You can inspect the list of options reported by DuckDB:
+
+```elixir
+Duckdbex.get_config_options()
+# => [
+#      %{
+#        name: "threads",
+#        type: :bigint,
+#        parameter_type: "BIGINT",
+#        description: "...",
+#        scope: :global_default,
+#        default: 1
+#      },
+#      ...
+#    ]
+```
+
+Duckdbex does not maintain a separate allowlist or denylist of config options. `Duckdbex.get_config_options/0` returns the options reported by DuckDB itself, and if some option cannot be used through `Duckdbex.create_config/0`, DuckDB will return the error when you call `Duckdbex.set_config_option/3` or open the database with that config.
 
 ## Create Connection
 
@@ -147,7 +168,7 @@ Now the `db` holds the `"forcing closing the database"` binary and there is no a
 But what if you need to close the database/connection/result_ref explicitly, for example, you want to close the database (flush all underlying db buffers to disk) and when archive the db file. To prevent using the strange code like `db = "forcing closing the database"` there is `Duckdbex.release(resource)` function to explicitly closing any underlying DuckDB resource:
 
 ```elixir
-iex> {:ok, db} = Duckdbex.open("my_database.duckdb", %Duckdbex.Config{})
+iex> {:ok, db} = Duckdbex.open("my_database.duckdb")
 iex> {:ok, conn} = Duckdbex.connection(db)
 iex> {:ok, res} = Duckdbex.query(conn, "SELECT 1 WHERE $1 = 1;", [1])
 iex> :ok = Duckdbex.release(res)
@@ -385,7 +406,7 @@ To change the default location where DuckDB stores its extensions, use the exten
 SET extension_directory = '/path/to/your/extension/directory';
 ```
 
-To set extensions directory via environment variable use the `DUCKDB_EXTENSION DIRECTORY` env var. It used as default value for `extension_directory` field of `%Duckdbex.Config{}` structure.
+To change the extensions directory in Duckdbex, configure DuckDB directly through `Duckdbex.create_config/0` and `Duckdbex.set_config_option/3`, or run `SET extension_directory = ...` after opening a connection.
 
 ### Remote installation
 
@@ -407,10 +428,11 @@ Download and install verified signed extension from remote source
 Almost the same as above, but you must configure DuckDB to allow unsigned extension
 
 ```elixir
-# configure DuckDB to allow  unsigned extension
-conf = %Duckdbex.Config{allow_unsigned_extensions: true}
-{:ok, db} = Duckdbex.open(conf)
-{:ok, conn} = Duckdbex.open(db)
+# configure DuckDB to allow unsigned extensions
+{:ok, config} = Duckdbex.create_config()
+:ok = Duckdbex.set_config_option(config, "allow_unsigned_extensions", true)
+{:ok, db} = Duckdbex.open(config)
+{:ok, conn} = Duckdbex.connection(db)
 
 # install unsigned extension from local source
 {:ok, _} = Duckdbex.query(conn, "INSTALL '/home/extensions/my_custom.duckdb_extension';")
@@ -430,9 +452,10 @@ duckdb$ cp build/release/extension/json/json.duckdb_extension /home/duckdb_unsig
 Now we can use this extension
 
 ```elixir
-conf = %Duckdbex.Config{allow_unsigned_extensions: true}
-{:ok, db} = Duckdbex.open(conf)
-{:ok, conn} = Duckdbex.open(db)
+{:ok, config} = Duckdbex.create_config()
+:ok = Duckdbex.set_config_option(config, "allow_unsigned_extensions", true)
+{:ok, db} = Duckdbex.open(config)
+{:ok, conn} = Duckdbex.connection(db)
 
 # load extension into the app
 {:ok, _} = Duckdbex.query(conn, "INSTALL '/home/duckdb_unsigned_extensions/json.duckdb_extension';")
@@ -468,11 +491,3 @@ And vice versa, if you should pass HUGEINT as argument to sql query, you should 
 ```
 
 Currently Duckdbex lib didn't convert automatically `hugeint_to_integer` for you because this is additional extra pass through your collection of rows which will be executed inside the library.
-
-## Default config
-
-If yuo
-DUCKDBEX_TEMPORARY_DIRECTORY
-DUCKDBEX_EXTENSION_DIRECTORY
-
-

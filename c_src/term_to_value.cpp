@@ -95,6 +95,15 @@ namespace {
   }
 }
 
+bool nif::atom_to_string(ErlNifEnv* env, ERL_NIF_TERM term, duckdb::Value& sink) {
+  std::string atom_string;
+  if (!nif::atom_to_string(env, term, atom_string))
+    return false;
+
+  sink = std::move(duckdb::Value(atom_string));
+  return true;
+}
+
 bool nif::term_to_null(ErlNifEnv* env, ERL_NIF_TERM term, duckdb::Value& sink) {
   unsigned atom_len = 0;
   if (!enif_get_atom_length(env, term, &atom_len, ERL_NIF_LATIN1))
@@ -148,6 +157,19 @@ bool nif::term_to_string(ErlNifEnv* env, ERL_NIF_TERM term, duckdb::Value& sink)
 
 bool nif::term_to_enum(ErlNifEnv* env, ERL_NIF_TERM term, duckdb::Value& sink) {
   return term_to_string(env, term, sink);
+}
+
+bool nif::term_to_any(ErlNifEnv* env, ERL_NIF_TERM term, duckdb::Value& sink) {
+  if (term_to_null(env, term, sink) || term_to_boolean(env, term, sink))
+    return true;
+
+  if (term_to_string(env, term, sink) || atom_to_string(env, term, sink))
+    return true;
+
+  if (term_to_bigint(env, term, sink) || term_to_ubigint(env, term, sink) || term_to_double(env, term, sink))
+    return true;
+
+  return false;
 }
 
 bool nif::term_to_float(ErlNifEnv* env, ERL_NIF_TERM term, duckdb::Value& sink) {
@@ -980,7 +1002,8 @@ bool nif::term_to_value(ErlNifEnv* env, ERL_NIF_TERM term, const duckdb::Logical
 
     case duckdb::LogicalTypeId::CHAR:
     case duckdb::LogicalTypeId::VARCHAR:
-      return term_to_string(env, term, sink);
+    case duckdb::LogicalTypeId::ENUM:
+      return term_to_string(env, term, sink) || atom_to_string(env, term, sink);
 
     case duckdb::LogicalTypeId::DATE:
       return term_to_date(env, term, sink);
@@ -1012,8 +1035,8 @@ bool nif::term_to_value(ErlNifEnv* env, ERL_NIF_TERM term, const duckdb::Logical
     case duckdb::LogicalTypeId::INTERVAL:
       return term_to_interval(env, term, sink);
 
-    case duckdb::LogicalTypeId::ENUM:
-      return term_to_enum(env, term, sink);
+    case duckdb::LogicalTypeId::ANY:
+      return term_to_any(env, term, sink);
 
     case duckdb::LogicalTypeId::LIST:
       return term_to_list(env, term, value_type, sink);

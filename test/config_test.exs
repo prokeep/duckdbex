@@ -1,7 +1,21 @@
 defmodule Duckdbex.Nif.ConfigTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: false
 
-  test "explicit nil config" do
+  test "create_config/0" do
+    assert {:ok, config} = Duckdbex.create_config()
+    assert is_reference(config)
+  end
+
+  test "get_config_options/0 returns DuckDB config options" do
+    options = Duckdbex.get_config_options()
+
+    assert is_list(options)
+    assert length(options) > 0
+    assert Enum.any?(options, &(&1.name == "search_path"))
+    assert Enum.any?(options, &(&1.name == "threads"))
+  end
+
+  test "open with nil config" do
     assert {:ok, _db} = Duckdbex.open(":memory:", nil)
   end
 
@@ -11,31 +25,20 @@ defmodule Duckdbex.Nif.ConfigTest do
     end)
   end
 
-  test "open with default config" do
-    assert {:ok, _db} = Duckdbex.open(":memory:", %Duckdbex.Config{})
+  test "set_config_option returns error for unknown option" do
+    {:ok, config} = Duckdbex.create_config()
+    assert {:error, _reason} = Duckdbex.set_config_option(config, "definitely_unknown_option", 1)
   end
 
-  test "erlang memory allocator" do
-    {:ok, _db} = Duckdbex.open(":memory:", %Duckdbex.Config{memory_allocator: :erlang})
+  test "open with supported config option" do
+    {:ok, config} = Duckdbex.create_config()
+    assert :ok = Duckdbex.set_config_option(config, "threads", 1)
+    assert {:ok, _db} = Duckdbex.open(":memory:", config)
   end
 
-  test "disabled optimizers" do
-    {:ok, _db} =
-      Duckdbex.open(":memory:", %Duckdbex.Config{
-        disabled_optimizers: [:invalid, :expression_rewriter]
-      })
-  end
-
-  test "user options" do
-    {:ok, _db} =
-      Duckdbex.open(":memory:", %Duckdbex.Config{
-        user_options: [{"my_option", 42}, {"option2", "mem"}]
-      })
-  end
-
-  test "invalid config option" do
-    assert_raise(ArgumentError, fn ->
-      Duckdbex.open(":memory:", %{invalid: "config"})
-    end)
+  test "unsupported config option returns DuckDB error" do
+    {:ok, config} = Duckdbex.create_config()
+    assert {:error, reason} = Duckdbex.set_config_option(config, "search_path", "main")
+    assert reason =~ "Could not set option"
   end
 end

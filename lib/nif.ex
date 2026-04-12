@@ -4,6 +4,7 @@ defmodule Duckdbex.NIF do
   @compile {:autoload, false}
   @on_load {:init, 0}
 
+  @type config() :: reference()
   @type db() :: reference()
   @type connection() :: reference()
   @type query_result() :: reference()
@@ -15,10 +16,19 @@ defmodule Duckdbex.NIF do
     :erlang.load_nif(String.to_charlist(Path.join(:code.priv_dir(:duckdbex), "duckdb_nif")), 0)
   end
 
-  @spec release(db() | connection() | statement() | query_result() | appender()) :: :ok
+  @spec create_config() :: {:ok, config()} | {:error, reason()}
+  def create_config(), do: :erlang.nif_error(:not_loaded)
+
+  @spec set_config_option(config(), binary() | atom(), term()) :: :ok | {:error, reason()}
+  def set_config_option(_config, _name, _value), do: :erlang.nif_error(:not_loaded)
+
+  @spec get_config_options() :: list(map())
+  def get_config_options(), do: :erlang.nif_error(:not_loaded)
+
+  @spec release(config() | db() | connection() | statement() | query_result() | appender()) :: :ok
   def release(_resource), do: :erlang.nif_error(:not_loaded)
 
-  @spec open(binary(), Duckdbex.Config.t()) :: {:ok, db()} | {:error, reason()}
+  @spec open(binary(), config() | nil) :: {:ok, db()} | {:error, reason()}
   def open(_path, _config), do: :erlang.nif_error(:not_loaded)
 
   @spec connection(db()) :: {:ok, connection()} | {:error, reason()}

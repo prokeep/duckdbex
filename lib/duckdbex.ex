@@ -3,6 +3,7 @@ defmodule Duckdbex do
   DuckDB API module
   """
 
+  @type config() :: reference()
   @type db() :: reference()
   @type reason() :: :atom | binary()
   @type connection() :: reference()
@@ -11,7 +12,46 @@ defmodule Duckdbex do
   @type appender :: reference()
 
   @doc """
-  Release resource (db, connection, stmt, query_result)
+  Creates a DuckDB config object.
+
+  The config can be reused across `open/2` calls and configured through `set_config_option/3`.
+
+  ## Examples
+
+    iex> {:ok, _config} = Duckdbex.create_config()
+  """
+  @spec create_config() :: {:ok, config()} | {:error, reason()}
+  def create_config(),
+    do: Duckdbex.NIF.create_config()
+
+  @doc """
+  Sets a DuckDB config option by name.
+
+  Use `get_config_options/0` to discover the options reported by DuckDB.
+
+  For string-like options pass binaries. For boolean options pass `true`/`false`.
+
+  ## Examples
+
+    iex> {:ok, config} = Duckdbex.create_config()
+    iex> :ok = Duckdbex.set_config_option(config, "threads", 1)
+  """
+  @spec set_config_option(config(), binary() | atom(), term()) :: :ok | {:error, reason()}
+  def set_config_option(config, name, value)
+      when is_reference(config) and (is_binary(name) or is_atom(name)),
+      do: Duckdbex.NIF.set_config_option(config, name, value)
+
+  @doc """
+  Returns the DuckDB config options reported by `DBConfig::GetOptions()`.
+
+  Each option is represented as a map with metadata such as name, type, scope and default value.
+  """
+  @spec get_config_options() :: list(map())
+  def get_config_options(),
+    do: Duckdbex.NIF.get_config_options()
+
+  @doc """
+  Release resource (config, db, connection, stmt, query_result)
 
   Will cause destruction and automatic closing the releasing resource in the calling process on dirty schedulers. The released resource cannot be used after this point.
 
@@ -19,14 +59,14 @@ defmodule Duckdbex do
 
   ## Examples
 
-    iex> {:ok, db} = Duckdbex.open("my_database.duckdb", %Duckdbex.Config{})
+    iex> {:ok, db} = Duckdbex.open("my_database.duckdb")
     iex> {:ok, conn} = Duckdbex.connection(db)
     iex> {:ok, res} = Duckdbex.query(conn, "SELECT 1 WHERE $1 = 1;", [1])
     iex> :ok = Duckdbex.release(res)
     iex> :ok = Duckdbex.release(conn)
     iex> :ok = Duckdbex.release(db)
   """
-  @spec release(db() | connection() | statement() | query_result() | appender()) :: :ok
+  @spec release(config() | db() | connection() | statement() | query_result() | appender()) :: :ok
   def release(resource) when is_reference(resource),
     do: Duckdbex.NIF.release(resource)
 
@@ -37,9 +77,10 @@ defmodule Duckdbex do
 
   ## Examples
 
-    iex> {:ok, _db} = Duckdbex.open("my_database.duckdb", %Duckdbex.Config{})
+    iex> {:ok, _config} = Duckdbex.create_config()
+    iex> {:ok, _db} = Duckdbex.open("my_database.duckdb", nil)
   """
-  @spec open(binary(), Duckdbex.Config.t() | nil) :: {:ok, db()} | {:error, reason()}
+  @spec open(binary(), config() | nil) :: {:ok, db()} | {:error, reason()}
   def open(path, config) when is_binary(path),
     do: Duckdbex.NIF.open(path, config)
 
@@ -47,19 +88,21 @@ defmodule Duckdbex do
   If the path to the file is specified, then opens the database in the file.
 
   If specified file does not exist, a new database file with the given name will be created automatically.
-  If database config is specified, then opens the database in the memory with the custom database config.
+  If config is specified, then opens the database in memory with that config.
 
   ## Examples
 
     iex> {:ok, _db} = Duckdbex.open("my_database.duckdb")
 
-    iex> {:ok, _db} = Duckdbex.open(%Duckdbex.Config{access_mode: :automatic})
+    iex> {:ok, config} = Duckdbex.create_config()
+    iex> :ok = Duckdbex.set_config_option(config, "threads", 1)
+    iex> {:ok, _db} = Duckdbex.open(config)
   """
-  @spec open(binary() | Duckdbex.Config.t()) :: {:ok, db()} | {:error, reason()}
+  @spec open(binary() | config()) :: {:ok, db()} | {:error, reason()}
   def open(path) when is_binary(path),
-    do: Duckdbex.NIF.open(path, %Duckdbex.Config{})
+    do: Duckdbex.NIF.open(path, nil)
 
-  def open(%Duckdbex.Config{} = config),
+  def open(config) when is_reference(config),
     do: Duckdbex.NIF.open(":memory:", config)
 
   @doc """
@@ -71,7 +114,7 @@ defmodule Duckdbex do
   """
   @spec open() :: {:ok, db()} | {:error, reason()}
   def open(),
-    do: Duckdbex.NIF.open(":memory:", %Duckdbex.Config{})
+    do: Duckdbex.NIF.open(":memory:", nil)
 
   @doc """
   Creates connection object to work with database.

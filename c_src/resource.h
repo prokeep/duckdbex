@@ -7,6 +7,7 @@
  */
 
 static ErlNifResourceType* database_nif_type = nullptr;
+static ErlNifResourceType* config_nif_type = nullptr;
 static ErlNifResourceType* connection_nif_type = nullptr;
 static ErlNifResourceType* query_result_nif_type = nullptr;
 static ErlNifResourceType* prepared_statement_nif_type = nullptr;
@@ -94,6 +95,14 @@ template <>
 inline erlang_resource<duckdb::DuckDB>* get_resource(ErlNifEnv* env, ERL_NIF_TERM term) {
   erlang_resource<duckdb::DuckDB>* resource = nullptr;
   if(enif_get_resource(env, term, database_nif_type, (void**)&resource) && resource->data)
+    return resource;
+  return nullptr;
+}
+
+template <>
+inline erlang_resource<duckdb::DBConfig>* get_resource(ErlNifEnv* env, ERL_NIF_TERM term) {
+  erlang_resource<duckdb::DBConfig>* resource = nullptr;
+  if(enif_get_resource(env, term, config_nif_type, (void**)&resource) && resource->data)
     return resource;
   return nullptr;
 }

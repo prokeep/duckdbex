@@ -1,5 +1,15 @@
 # Changelog
 
+0.4.0
+  - Breaking change release.
+  - Updated to DuckDB 1.5.1.
+  - Removed the old `%Duckdbex.Config{}` config API.
+  - Replaced the old `%Duckdbex.Config{}`-based config layer with NIF-backed `DBConfig` resources.
+  - Added `Duckdbex.create_config/0`, `Duckdbex.set_config_option/3` and `Duckdbex.get_config_options/0`.
+  - `Duckdbex.get_config_options/0` now exposes the config options reported by DuckDB directly.
+  - Updated tests and README to document the new config model.
+  - Merged the @arthurbailao PR [fix: correct NIF resource lifecycle and C++ initialization](https://github.com/AlexR2D2/duckdbex/pull/53)
+
 0.3.21
   - merged the @karvla PR: [handle special float cases #52](https://github.com/AlexR2D2/duckdbex/pull/52)
 

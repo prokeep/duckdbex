@@ -3,6 +3,79 @@
 #include "term.h"
 #include <cmath>
 
+ERL_NIF_TERM nif::logical_type_to_term(ErlNifEnv* env, const duckdb::LogicalType& type) {
+  switch (type.id()) {
+    case duckdb::LogicalTypeId::BOOLEAN:
+      return make_atom(env, "boolean");
+    case duckdb::LogicalTypeId::CHAR:
+    case duckdb::LogicalTypeId::VARCHAR:
+    case duckdb::LogicalTypeId::ENUM:
+      return make_atom(env, "string");
+    case duckdb::LogicalTypeId::TINYINT:
+      return make_atom(env, "tinyint");
+    case duckdb::LogicalTypeId::UTINYINT:
+      return make_atom(env, "utinyint");
+    case duckdb::LogicalTypeId::SMALLINT:
+      return make_atom(env, "smallint");
+    case duckdb::LogicalTypeId::USMALLINT:
+      return make_atom(env, "usmallint");
+    case duckdb::LogicalTypeId::INTEGER:
+      return make_atom(env, "integer");
+    case duckdb::LogicalTypeId::UINTEGER:
+      return make_atom(env, "uinteger");
+    case duckdb::LogicalTypeId::BIGINT:
+      return make_atom(env, "bigint");
+    case duckdb::LogicalTypeId::UBIGINT:
+      return make_atom(env, "ubigint");
+    case duckdb::LogicalTypeId::HUGEINT:
+      return make_atom(env, "hugeint");
+    case duckdb::LogicalTypeId::UHUGEINT:
+      return make_atom(env, "uhugeint");
+    case duckdb::LogicalTypeId::FLOAT:
+      return make_atom(env, "float");
+    case duckdb::LogicalTypeId::DOUBLE:
+      return make_atom(env, "double");
+    case duckdb::LogicalTypeId::DECIMAL:
+      return make_atom(env, "decimal");
+    case duckdb::LogicalTypeId::DATE:
+      return make_atom(env, "date");
+    case duckdb::LogicalTypeId::TIME:
+      return make_atom(env, "time");
+    case duckdb::LogicalTypeId::TIME_TZ:
+      return make_atom(env, "time_tz");
+    case duckdb::LogicalTypeId::TIMESTAMP:
+      return make_atom(env, "timestamp");
+    case duckdb::LogicalTypeId::TIMESTAMP_TZ:
+      return make_atom(env, "timestamp_tz");
+    case duckdb::LogicalTypeId::TIMESTAMP_NS:
+      return make_atom(env, "timestamp_ns");
+    case duckdb::LogicalTypeId::TIMESTAMP_MS:
+      return make_atom(env, "timestamp_ms");
+    case duckdb::LogicalTypeId::TIMESTAMP_SEC:
+      return make_atom(env, "timestamp_sec");
+    case duckdb::LogicalTypeId::INTERVAL:
+      return make_atom(env, "interval");
+    case duckdb::LogicalTypeId::BLOB:
+      return make_atom(env, "blob");
+    case duckdb::LogicalTypeId::UUID:
+      return make_atom(env, "uuid");
+    case duckdb::LogicalTypeId::LIST:
+      return make_atom(env, "list");
+    case duckdb::LogicalTypeId::ARRAY:
+      return make_atom(env, "array");
+    case duckdb::LogicalTypeId::MAP:
+      return make_atom(env, "map");
+    case duckdb::LogicalTypeId::STRUCT:
+      return make_atom(env, "struct");
+    case duckdb::LogicalTypeId::UNION:
+      return make_atom(env, "union");
+    case duckdb::LogicalTypeId::ANY:
+      return make_atom(env, "any");
+    default:
+      return make_atom(env, "unknown");
+  }
+}
+
 bool nif::value_to_term(ErlNifEnv* env, const duckdb::Value& value, ERL_NIF_TERM& sink) {
   // <dbg>
   // std::cout << "value_to_term: value_type: " << value.type().ToString() << std::endl;

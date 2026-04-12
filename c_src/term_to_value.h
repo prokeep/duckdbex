@@ -7,6 +7,8 @@ namespace duckdb {
 }
 
 namespace nif {
+  bool atom_to_string(ErlNifEnv* env, ERL_NIF_TERM term, duckdb::Value& sink);
+  bool term_to_any(ErlNifEnv* env, ERL_NIF_TERM term, duckdb::Value& sink);
   bool term_to_null(ErlNifEnv* env, ERL_NIF_TERM term, duckdb::Value& sink);
   bool term_to_boolean(ErlNifEnv* env, ERL_NIF_TERM term, duckdb::Value& sink);
   bool term_to_string(ErlNifEnv* env, ERL_NIF_TERM term, duckdb::Value& sink);

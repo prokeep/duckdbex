@@ -3,12 +3,15 @@ defmodule DuckdbexTest do
   doctest Duckdbex
 
   test "open/2" do
-    assert {:ok, _db} = Duckdbex.open(":memory:", %Duckdbex.Config{})
+    {:ok, config} = Duckdbex.create_config()
+    assert {:ok, _db} = Duckdbex.open(":memory:", config)
   end
 
   test "open/1" do
     assert {:ok, _db} = Duckdbex.open(":memory:")
-    assert {:ok, _db} = Duckdbex.open(%Duckdbex.Config{})
+
+    {:ok, config} = Duckdbex.create_config()
+    assert {:ok, _db} = Duckdbex.open(config)
   end
 
   test "open/0" do

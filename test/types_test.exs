@@ -1,9 +1,14 @@
 defmodule Duckdbex.TypesTest do
   use ExUnit.Case, async: true
 
+  defp config_with_unsigned_extensions() do
+    {:ok, config} = Duckdbex.create_config()
+    :ok = Duckdbex.set_config_option(config, "allow_unsigned_extensions", true)
+    config
+  end
+
   setup ctx do
-    assert {:ok, db} =
-             Duckdbex.open(":memory:", %Duckdbex.Config{allow_unsigned_extensions: true})
+    assert {:ok, db} = Duckdbex.open(":memory:", config_with_unsigned_extensions())
 
     assert {:ok, conn} = Duckdbex.connection(db)
 

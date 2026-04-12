@@ -76,9 +76,82 @@ platform(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 }
 
 static ERL_NIF_TERM
+create_config(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+  if (argc != 0)
+    return enif_make_badarg(env);
+
+  try {
+    ErlangResourceBuilder<duckdb::DBConfig> resource_builder(config_nif_type);
+    return nif::make_ok_tuple(env, resource_builder.make_and_release_resource(env));
+  } catch (std::exception& ex) {
+    return nif::make_error_tuple(env, ex.what());
+  }
+}
+
+static ERL_NIF_TERM
+set_config_option(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+  if (argc != 3)
+    return enif_make_badarg(env);
+
+  auto configres = get_resource<duckdb::DBConfig>(env, argv[0]);
+  if (!configres)
+    return enif_make_badarg(env);
+
+  std::string option_name;
+  if (!nif::get_config_name(env, argv[1], option_name))
+    return enif_make_badarg(env);
+
+  duckdb::Value value;
+
+  if (auto option = duckdb::DBConfig::GetOptionByName(option_name)) {
+    if (!nif::term_to_option_value(env, argv[2], *option, value))
+      return nif::make_error_tuple(env, "invalid value for option \"" + option_name + "\"");
+
+    try {
+      configres->data->SetOption(*option, value);
+      return nif::make_atom(env, "ok");
+    } catch (std::exception& ex) {
+      return nif::make_error_tuple(env, ex.what());
+    }
+  } else {
+    duckdb::ExtensionOption extension_option;
+    if (!configres->data->TryGetExtensionOption(option_name, extension_option))
+      return nif::make_error_tuple(env, "unknown config option \"" + option_name + "\"");
+
+    if (!nif::term_to_option_value(env, argv[2], extension_option, value))
+      return nif::make_error_tuple(env, "invalid value for option \"" + option_name + "\"");
+
+    try {
+      configres->data->SetOption(extension_option.setting_index.GetIndex(), std::move(value));
+      return nif::make_atom(env, "ok");
+    } catch (std::exception& ex) {
+      return nif::make_error_tuple(env, ex.what());
+    }
+  }
+}
+
+static ERL_NIF_TERM
+get_config_options(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+  if (argc != 0)
+    return enif_make_badarg(env);
+
+  auto options = duckdb::DBConfig::GetOptions();
+  std::vector<ERL_NIF_TERM> terms(options.size());
+
+  for (duckdb::idx_t idx = 0; idx < options.size(); idx++) {
+    terms[idx] = nif::config_option_to_term(env, options[idx]);
+  }
+
+  if (terms.empty())
+    return enif_make_list(env, 0);
+
+  return enif_make_list_from_array(env, &terms[0], terms.size());
+}
+
+static ERL_NIF_TERM
 open(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
   std::string path;
-  duckdb::DBConfig config;
+  duckdb::DBConfig* config = nullptr;
 
   if (argc != 2)
     return enif_make_badarg(env);
@@ -89,12 +162,15 @@ open(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
 
   path = std::string((const char*)arg.data, arg.size);
 
-  if (!nif::is_atom(env, argv[1], "nil"))
-    if (!nif::get_config(env, argv[1], config))
+  if (!nif::is_atom(env, argv[1], "nil")) {
+    auto configres = get_resource<duckdb::DBConfig>(env, argv[1]);
+    if (!configres)
       return enif_make_badarg(env);
+    config = configres->data.get();
+  }
 
   try {
-    ErlangResourceBuilder<duckdb::DuckDB> resource_builder(database_nif_type, path, &config);
+    ErlangResourceBuilder<duckdb::DuckDB> resource_builder(database_nif_type, path, config);
     return nif::make_ok_tuple(env, resource_builder.make_and_release_resource(env));
 
   } catch (std::exception& ex) {
@@ -626,6 +702,9 @@ release(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
   if (auto res = get_resource<duckdb::DuckDB>(env, argv[0]))
     res->data = nullptr;
 
+  if (auto res = get_resource<duckdb::DBConfig>(env, argv[0]))
+    res->data = nullptr;
+
   return nif::make_atom(env, "ok");
 }
 
@@ -643,6 +722,18 @@ on_load(ErlNifEnv* env, void** priv, ERL_NIF_TERM info) {
     NULL);
 
   if (!database_nif_type) {
+      return -1;
+  }
+
+  config_nif_type = enif_open_resource_type(
+    env,
+    "duckdbex",
+    "config_nif_type",
+    resource_destructor<duckdb::DBConfig>,
+    ERL_NIF_RT_CREATE,
+    NULL);
+
+  if (!config_nif_type) {
       return -1;
   }
 
@@ -715,6 +806,9 @@ static ErlNifFunc nif_funcs[] = {
   {"platform", 0, platform, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"number_of_threads", 1, number_of_threads, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"extension_is_loaded", 2, extension_is_loaded, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"create_config", 0, create_config, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"set_config_option", 3, set_config_option, ERL_NIF_DIRTY_JOB_IO_BOUND},
+  {"get_config_options", 0, get_config_options, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"open", 2, open, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"connection", 1, connection, ERL_NIF_DIRTY_JOB_IO_BOUND},
   {"query", 2, query_without_parameters, ERL_NIF_DIRTY_JOB_IO_BOUND},

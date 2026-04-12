@@ -87,7 +87,6 @@ ERL_NIF_TERM
 nif::make_binary_term(ErlNifEnv* env, const char* cstr, size_t len) {
   assert(env);
   assert(cstr);
-  assert(len);
 
   if(cstr) {
     ERL_NIF_TERM result;
@@ -130,7 +129,7 @@ bool nif::atom_to_string(ErlNifEnv* env, ERL_NIF_TERM term, std::string& sink) {
   if(!enif_get_atom(env, term, &atom[0], atom.size(), ERL_NIF_LATIN1))
     return false;
 
-  sink = std::string(&atom[0], atom.size());
+  sink = std::string(&atom[0], atom_len);
 
   return true;
 }
