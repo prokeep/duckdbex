@@ -88,13 +88,13 @@ defmodule Duckdbex.MixProject do
       cleanup: "clean",
       compilers: %{
         {:unix, :linux} => %{
-          :include_default_ones => true,
-          "x86_64-linux-gnu" => "x86_64-linux-gnu-",
-          "aarch64-linux-gnu" => "aarch64-linux-gnu-",
-          "riscv64-linux-gnu" => "riscv64-linux-gnu-"
+          :include_default_ones => false,
+          "x86_64-linux-musl" => ""
         },
         {:unix, :darwin} => %{
-          :include_default_ones => true
+          :include_default_ones => false,
+          "x86_64-apple-darwin" => "",
+          "aarch64-apple-darwin" => ""
         }
       }
     ]
