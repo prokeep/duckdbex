@@ -1,5 +1,8 @@
 # Changelog
 
+0.4.0-prokeep.1
+  - Add an explicit `#include <cstdint>` in `c_src/term.cpp` so `duckdbex` compiles on Alpine Linux 3.22 / GCC 14 toolchains where `uint8_t` is not provided through transitive includes.
+ 
 0.4.0
   - Breaking change release.
   - Updated to DuckDB 1.5.1.
