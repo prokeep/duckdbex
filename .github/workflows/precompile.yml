@@ -9,30 +9,23 @@ permissions:
   contents: write
 
 env:
-  DUCKDBEX_VERSION: "0.4.0"
+  DUCKDBEX_VERSION: "0.4.0-prokeep.2"
   DUCKDB_VERSION: "1.5.1"
 
 jobs:
   linux:
-    name: Linux Erlang/OTP ${{matrix.otp}} - Elixir ${{matrix.elixir}}
+    name: Linux GNU Erlang/OTP 28.2 - Elixir 1.19.5
     runs-on: ubuntu-22.04
     env:
       MIX_ENV: "prod"
-    strategy:
-      matrix:
-        include:
-          - otp: "25.3.2.14"
-            elixir: "1.16"
-          - otp: "27.0"
-            elixir: "1.17.3"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - uses: erlef/setup-beam@v1
         with:
-          otp-version: ${{matrix.otp}}
-          elixir-version: ${{matrix.elixir}}
+          otp-version: "28.2"
+          elixir-version: "1.19.5"
 
       - name: Install system dependencies
         run: |
@@ -48,28 +41,20 @@ jobs:
           mix local.rebar --force
 
       - name: Cache mix deps
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             deps
             _build
             ~/.cache/duckdbex-nif-*
-          key: ${{ runner.os }}-mix-${{ matrix.otp }}-${{ matrix.elixir }}-${{ hashFiles('**/mix.lock') }}
+          key: linux-gnu-mix-otp-28.2-elixir-1.19.5-${{ hashFiles('**/mix.lock') }}
           restore-keys: |
-            ${{ runner.os }}-mix-${{ matrix.otp }}-${{ matrix.elixir }}-
+            linux-gnu-mix-otp-28.2-elixir-1.19.5-
 
       - name: Get Dependencies
         run: |
           export ELIXIR_MAKE_FORCE_BUILD=1
           mix deps.get
-
-      - name: Patch source code
-        run: |
-          echo '#define _GLIBCXX_USE_C99_MATH 1' > temp_header.hpp
-          echo '#include <cmath>' >> temp_header.hpp
-          echo '#include <math.h>' >> temp_header.hpp
-          cat temp_header.hpp c_src/value_to_term.cpp > value_to_term_new.cpp
-          mv value_to_term_new.cpp c_src/value_to_term.cpp
 
       - name: Create precompiled library
         run: |
@@ -80,6 +65,59 @@ jobs:
           export CXXFLAGS="-D_GNU_SOURCE -std=c++11"
           export MAKEFLAGS="-j$(nproc)"
           mix elixir_make.precompile
+          ls -lh cache/*.tar.gz
+
+      - name: Mix Test
+        run: |
+          export ELIXIR_MAKE_FORCE_BUILD=1
+          MIX_ENV=test mix test
+
+      - uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            cache/*.tar.gz
+            cache/*.tar.gz
+
+  linux-musl:
+    name: Alpine musl x86_64 - elixir:1.19.5-otp-28-alpine
+    runs-on: ubuntu-22.04
+    container:
+      image: elixir:1.19.5-otp-28-alpine
+    env:
+      MIX_ENV: "prod"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          apk add --no-cache alpine-sdk git ccache
+
+      - name: Setup Mix
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+
+      - name: Pre-compile NIF library
+        run: |
+          echo "Target info:"
+          uname -m
+          elixir -e 'IO.inspect(:erlang.system_info(:system_architecture))'
+          elixir -e 'IO.inspect(:erlang.system_info(:nif_version))'
+
+          export ELIXIR_MAKE_CACHE_DIR=$(pwd)/cache
+          mkdir -p "${ELIXIR_MAKE_CACHE_DIR}"
+          export ELIXIR_MAKE_FORCE_BUILD=1
+          export CC="ccache gcc"
+          export CXX="ccache g++"
+          export CXXFLAGS="-D_GNU_SOURCE -std=c++11"
+          export MAKEFLAGS="-j$(nproc)"
+
+          mix deps.get
+          mix elixir_make.precompile
+
+          ls -lh cache/*.tar.gz
 
       - name: Mix Test
         run: |
@@ -103,10 +141,9 @@ jobs:
           - x86_64-apple-darwin
           - arm64-apple-darwin
         job:
-          - {otp: "27.0.1", elixir: "1.17.2"}
-          - {otp: "25.3.2.13", elixir: "1.16.3"}
+          - {otp: "28.2", elixir: "1.19.5"}
 
-    name: Mac ${{ matrix.arch }} - OTP ${{ matrix.job.otp }} - Elixir ${{ matrix.job.elixir }}
+    name: Mac ${{ matrix.arch }} - OTP 28.2 - Elixir 1.19.5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
