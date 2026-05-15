@@ -9,76 +9,10 @@ permissions:
   contents: write
 
 env:
-  DUCKDBEX_VERSION: "0.4.0-prokeep.2"
+  DUCKDBEX_VERSION: "0.4.0-prokeep.3"
   DUCKDB_VERSION: "1.5.1"
 
 jobs:
-  linux:
-    name: Linux GNU Erlang/OTP 28.2 - Elixir 1.19.5
-    runs-on: ubuntu-22.04
-    env:
-      MIX_ENV: "prod"
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - uses: erlef/setup-beam@v1
-        with:
-          otp-version: "28.2"
-          elixir-version: "1.19.5"
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential automake autoconf pkg-config bc m4 unzip zip \
-            gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-            gcc-riscv64-linux-gnu g++-riscv64-linux-gnu \
-            libstdc++-10-dev erlang-dev ccache
-
-      - name: Setup Mix
-        run: |
-          mix local.hex --force
-          mix local.rebar --force
-
-      - name: Cache mix deps
-        uses: actions/cache@v4
-        with:
-          path: |
-            deps
-            _build
-            ~/.cache/duckdbex-nif-*
-          key: linux-gnu-mix-otp-28.2-elixir-1.19.5-${{ hashFiles('**/mix.lock') }}
-          restore-keys: |
-            linux-gnu-mix-otp-28.2-elixir-1.19.5-
-
-      - name: Get Dependencies
-        run: |
-          export ELIXIR_MAKE_FORCE_BUILD=1
-          mix deps.get
-
-      - name: Create precompiled library
-        run: |
-          export ELIXIR_MAKE_CACHE_DIR=$(pwd)/cache
-          mkdir -p "${ELIXIR_MAKE_CACHE_DIR}"
-          export CC="ccache gcc"
-          export CXX="ccache g++"
-          export CXXFLAGS="-D_GNU_SOURCE -std=c++11"
-          export MAKEFLAGS="-j$(nproc)"
-          mix elixir_make.precompile
-          ls -lh cache/*.tar.gz
-
-      - name: Mix Test
-        run: |
-          export ELIXIR_MAKE_FORCE_BUILD=1
-          MIX_ENV=test mix test
-
-      - uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: |
-            cache/*.tar.gz
-            cache/*.tar.gz
-
   linux-musl:
     name: Alpine musl x86_64 - elixir:1.19.5-otp-28-alpine
     runs-on: ubuntu-22.04
