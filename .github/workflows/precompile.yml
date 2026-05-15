@@ -1,15 +1,16 @@
 name: precompile
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without leading v, e.g. 0.4.0-prokeep.3"
+        required: true
 
 permissions:
   contents: write
 
 env:
-  DUCKDBEX_VERSION: "0.4.0-prokeep.3"
   DUCKDB_VERSION: "1.5.1"
 
 jobs:
@@ -37,15 +38,15 @@ jobs:
         run: |
           echo "Target info:"
           uname -m
-          elixir -e 'IO.inspect(:erlang.system_info(:system_architecture))'
-          elixir -e 'IO.inspect(:erlang.system_info(:nif_version))'
+          elixir -e 'IO.inspect(:erlang.system_info(:system_architecture), label: "system_architecture")'
+          elixir -e 'IO.inspect(:erlang.system_info(:nif_version), label: "nif_version")'
 
           export ELIXIR_MAKE_CACHE_DIR=$(pwd)/cache
           mkdir -p "${ELIXIR_MAKE_CACHE_DIR}"
           export ELIXIR_MAKE_FORCE_BUILD=1
           export CC="ccache gcc"
           export CXX="ccache g++"
-          export CXXFLAGS="-D_GNU_SOURCE -std=c++11"
+          export CXXFLAGS="-D_GNU_SOURCE -std=c++11 -Wno-deprecated-declarations"
           export MAKEFLAGS="-j$(nproc)"
 
           mix deps.get
@@ -58,11 +59,11 @@ jobs:
           export ELIXIR_MAKE_FORCE_BUILD=1
           MIX_ENV=test mix test
 
-      - uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Upload precompiled NIF artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: |
-            cache/*.tar.gz
+          name: linux-musl-nif
+          path: cache/*.tar.gz
 
   macos:
     runs-on: macos-14
@@ -138,16 +139,100 @@ jobs:
           mix deps.get
           export CC="ccache clang"
           export CXX="ccache clang++"
-          export CXXFLAGS="-std=c++11"
+          export CXXFLAGS="-std=c++11 -Wno-deprecated-declarations"
           export MAKEFLAGS="-j$(sysctl -n hw.ncpu)"
           mix elixir_make.precompile
+
+          ls -lh cache/*.tar.gz
 
       - name: Mix Test
         run: |
           MIX_ENV=test mix test
 
-      - uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Upload precompiled NIF artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: |
-            cache/*.tar.gz
+          name: macos-${{ matrix.arch }}-nif
+          path: cache/*.tar.gz
+
+  finalize-release:
+    name: Generate checksums, tag, and publish release
+    runs-on: ubuntu-22.04
+    needs:
+      - linux-musl
+      - macos
+    steps:
+      - name: Checkout source branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          token: ${{ github.token }}
+
+      - name: Download built NIF artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: precompiled-assets
+          merge-multiple: true
+
+      - name: Verify version and artifacts
+        run: |
+          test "v${{ inputs.version }}" != "v"
+          grep '@version "${{ inputs.version }}"' mix.exs
+
+          echo "Artifacts:"
+          find precompiled-assets -name '*.tar.gz' -maxdepth 2 -print -exec shasum -a 256 {} \;
+
+          test -f "precompiled-assets/duckdbex-nif-2.17-x86_64-linux-musl-${{ inputs.version }}.tar.gz"
+
+      - name: Generate checksum.exs
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+
+          files = sorted(Path("precompiled-assets").glob("*.tar.gz"))
+
+          if not files:
+              raise SystemExit("No .tar.gz artifacts found")
+
+          seen = set()
+          lines = ["%{"]
+
+          for path in files:
+              if path.name in seen:
+                  continue
+
+              seen.add(path.name)
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              lines.append(f'  "{path.name}" => "sha256:{digest}",')
+
+          lines.append("}")
+          Path("checksum.exs").write_text("\n".join(lines) + "\n")
+          PY
+
+          cat checksum.exs
+          grep 'linux-musl' checksum.exs
+
+      - name: Commit checksum.exs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add -f checksum.exs
+          git commit -m "Add precompiled NIF checksums for ${{ inputs.version }}"
+
+          git push origin HEAD:${{ github.ref_name }}
+
+      - name: Tag checksum commit
+        run: |
+          git tag "v${{ inputs.version }}"
+          git push origin "v${{ inputs.version }}"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ inputs.version }}" \
+            --title "v${{ inputs.version }}" \
+            --notes "Precompiled NIF artifacts for v${{ inputs.version }}" \
+            precompiled-assets/*.tar.gz
