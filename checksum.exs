@@ -1,8 +1,5 @@
 %{
-  "duckdbex-nif-2.17-aarch64-apple-darwin-0.4.0-prokeep.2.tar.gz" =>
-    "sha256:9e9821b498d2f6346c02adb238013277823482e16f3c04be9e13b5164bd6240b",
-  "duckdbex-nif-2.17-x86_64-apple-darwin-0.4.0-prokeep.2.tar.gz" =>
-    "sha256:7ac2b1f042dcbc163efa005a7e2c3dd652863cca3d2ba229910e68aff61fd05a",
-  "duckdbex-nif-2.17-x86_64-linux-musl-0.4.0-prokeep.2.tar.gz" =>
-    "sha256:7b3ca3842ef3a6b3fe42cba6eeac374e3d098d6bcfca509906f9c02496836ed9"
+  "duckdbex-nif-2.17-aarch64-apple-darwin-0.4.0-prokeep.2.tar.gz" => "sha256:7cb51e21286a5822335662ef13bf8435f388329396729d7bc7c25f523441390d",
+  "duckdbex-nif-2.17-x86_64-apple-darwin-0.4.0-prokeep.2.tar.gz" => "sha256:9e7a23226928a5a9b56e18f315bb912e937c13e8fc0c90ded44d3e1656637d3c",
+  "duckdbex-nif-2.17-x86_64-linux-musl-0.4.0-prokeep.2.tar.gz" => "sha256:33b443f39e92c59541f68829445ca7c21ec9d90d83c4224b1dc1dd0b772a2119",
 }
