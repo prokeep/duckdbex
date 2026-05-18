@@ -21,6 +21,7 @@ jobs:
       image: elixir:1.19.5-otp-28-alpine
     env:
       MIX_ENV: "prod"
+      CC_PRECOMPILER_PRECOMPILE_ONLY_LOCAL: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -54,9 +55,27 @@ jobs:
 
           ls -lh cache/*.tar.gz
 
+      - name: Refresh checksum.exs with local builds
+        run: |
+          python3 - <<'PY'
+          import hashlib, re
+          from pathlib import Path
+
+          cf = Path("checksum.exs")
+          checksums = {}
+          if cf.exists():
+              for m in re.finditer(r'"([^"]+)"\s*=>\s*"sha256:([a-f0-9]+)"', cf.read_text()):
+                  checksums[m.group(1)] = m.group(2)
+          for p in sorted(Path("cache").glob("*.tar.gz")):
+              checksums[p.name] = hashlib.sha256(p.read_bytes()).hexdigest()
+          lines = ["%{"] + [f'  "{n}" => "sha256:{d}",' for n, d in sorted(checksums.items())] + ["}"]
+          cf.write_text("\n".join(lines) + "\n")
+          print(f"checksum.exs: {len(checksums)} entries")
+          PY
+
       - name: Mix Test
         run: |
-          export ELIXIR_MAKE_FORCE_BUILD=1
+          export ELIXIR_MAKE_CACHE_DIR=$(pwd)/cache
           MIX_ENV=test mix test
 
       - name: Upload precompiled NIF artifact
@@ -107,9 +126,27 @@ jobs:
 
           ls -lh cache/*.tar.gz
 
+      - name: Refresh checksum.exs with local builds
+        run: |
+          python3 - <<'PY'
+          import hashlib, re
+          from pathlib import Path
+
+          cf = Path("checksum.exs")
+          checksums = {}
+          if cf.exists():
+              for m in re.finditer(r'"([^"]+)"\s*=>\s*"sha256:([a-f0-9]+)"', cf.read_text()):
+                  checksums[m.group(1)] = m.group(2)
+          for p in sorted(Path("cache").glob("*.tar.gz")):
+              checksums[p.name] = hashlib.sha256(p.read_bytes()).hexdigest()
+          lines = ["%{"] + [f'  "{n}" => "sha256:{d}",' for n, d in sorted(checksums.items())] + ["}"]
+          cf.write_text("\n".join(lines) + "\n")
+          print(f"checksum.exs: {len(checksums)} entries")
+          PY
+
       - name: Mix Test
         run: |
-          export ELIXIR_MAKE_FORCE_BUILD=1
+          export ELIXIR_MAKE_CACHE_DIR=$(pwd)/cache
           MIX_ENV=test mix test
 
       - name: Upload precompiled NIF artifact
