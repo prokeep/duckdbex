@@ -21,6 +21,7 @@ jobs:
       image: elixir:1.19.5-otp-28-alpine
     env:
       MIX_ENV: "prod"
+      CC_PRECOMPILER_PRECOMPILE_ONLY_LOCAL: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -54,15 +55,104 @@ jobs:
 
           ls -lh cache/*.tar.gz
 
+      - name: Refresh checksum.exs with local builds
+        run: |
+          python3 - <<'PY'
+          import hashlib, re
+          from pathlib import Path
+
+          cf = Path("checksum.exs")
+          checksums = {}
+          if cf.exists():
+              for m in re.finditer(r'"([^"]+)"\s*=>\s*"sha256:([a-f0-9]+)"', cf.read_text()):
+                  checksums[m.group(1)] = m.group(2)
+          for p in sorted(Path("cache").glob("*.tar.gz")):
+              checksums[p.name] = hashlib.sha256(p.read_bytes()).hexdigest()
+          lines = ["%{"] + [f'  "{n}" => "sha256:{d}",' for n, d in sorted(checksums.items())] + ["}"]
+          cf.write_text("\n".join(lines) + "\n")
+          print(f"checksum.exs: {len(checksums)} entries")
+          PY
+
       - name: Mix Test
         run: |
-          export ELIXIR_MAKE_FORCE_BUILD=1
+          export ELIXIR_MAKE_CACHE_DIR=$(pwd)/cache
           MIX_ENV=test mix test
 
       - name: Upload precompiled NIF artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-musl-nif
+          path: cache/*.tar.gz
+
+  linux-gnu-aarch64:
+    name: Ubuntu glibc aarch64 - elixir:1.19.5-otp-28
+    runs-on: ubuntu-22.04-arm
+    container:
+      image: elixir:1.19.5-otp-28
+    env:
+      MIX_ENV: "prod"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential git ccache ca-certificates
+
+      - name: Setup Mix
+        run: |
+          mix local.hex --force
+          mix local.rebar --force
+
+      - name: Pre-compile NIF library
+        run: |
+          echo "Target info:"
+          uname -m
+          ldd --version | head -1
+          elixir -e 'IO.inspect(:erlang.system_info(:system_architecture), label: "system_architecture")'
+          elixir -e 'IO.inspect(:erlang.system_info(:nif_version), label: "nif_version")'
+
+          export ELIXIR_MAKE_CACHE_DIR=$(pwd)/cache
+          mkdir -p "${ELIXIR_MAKE_CACHE_DIR}"
+          export ELIXIR_MAKE_FORCE_BUILD=1
+          export CC="ccache gcc"
+          export CXX="ccache g++"
+          export CXXFLAGS="-D_GNU_SOURCE -std=c++11 -Wno-deprecated-declarations"
+          export MAKEFLAGS="-j$(nproc)"
+
+          mix deps.get
+          mix elixir_make.precompile
+
+          ls -lh cache/*.tar.gz
+
+      - name: Refresh checksum.exs with local builds
+        run: |
+          python3 - <<'PY'
+          import hashlib, re
+          from pathlib import Path
+
+          cf = Path("checksum.exs")
+          checksums = {}
+          if cf.exists():
+              for m in re.finditer(r'"([^"]+)"\s*=>\s*"sha256:([a-f0-9]+)"', cf.read_text()):
+                  checksums[m.group(1)] = m.group(2)
+          for p in sorted(Path("cache").glob("*.tar.gz")):
+              checksums[p.name] = hashlib.sha256(p.read_bytes()).hexdigest()
+          lines = ["%{"] + [f'  "{n}" => "sha256:{d}",' for n, d in sorted(checksums.items())] + ["}"]
+          cf.write_text("\n".join(lines) + "\n")
+          print(f"checksum.exs: {len(checksums)} entries")
+          PY
+
+      - name: Mix Test
+        run: |
+          export ELIXIR_MAKE_CACHE_DIR=$(pwd)/cache
+          MIX_ENV=test mix test
+
+      - name: Upload precompiled NIF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-gnu-aarch64-nif
           path: cache/*.tar.gz
 
   macos:
@@ -158,8 +248,10 @@ jobs:
   finalize-release:
     name: Generate checksums, tag, and publish release
     runs-on: ubuntu-22.04
+    if: github.ref == 'refs/heads/main'
     needs:
       - linux-musl
+      - linux-gnu-aarch64
       - macos
     steps:
       - name: Checkout source branch
@@ -183,6 +275,7 @@ jobs:
           find precompiled-assets -name '*.tar.gz' -maxdepth 2 -print -exec shasum -a 256 {} \;
 
           test -f "precompiled-assets/duckdbex-nif-2.17-x86_64-linux-musl-${{ inputs.version }}.tar.gz"
+          test -f "precompiled-assets/duckdbex-nif-2.17-aarch64-linux-gnu-${{ inputs.version }}.tar.gz"
 
       - name: Generate checksum.exs
         run: |
