@@ -2,10 +2,6 @@ name: precompile
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Version without leading v, e.g. 0.4.0-prokeep.3"
-        required: true
 
 permissions:
   contents: write
@@ -266,16 +262,19 @@ jobs:
           path: precompiled-assets
           merge-multiple: true
 
-      - name: Verify version and artifacts
+      - name: Extract version from mix.exs
         run: |
-          test "v${{ inputs.version }}" != "v"
-          grep '@version "${{ inputs.version }}"' mix.exs
+          VERSION=$(sed -n 's/^  @version "\(.*\)"/\1/p' mix.exs)
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Releasing version: $VERSION"
 
+      - name: Verify artifacts
+        run: |
           echo "Artifacts:"
           find precompiled-assets -name '*.tar.gz' -maxdepth 2 -print -exec shasum -a 256 {} \;
 
-          test -f "precompiled-assets/duckdbex-nif-2.17-x86_64-linux-musl-${{ inputs.version }}.tar.gz"
-          test -f "precompiled-assets/duckdbex-nif-2.17-aarch64-linux-gnu-${{ inputs.version }}.tar.gz"
+          test -f "precompiled-assets/duckdbex-nif-2.17-x86_64-linux-musl-${VERSION}.tar.gz"
+          test -f "precompiled-assets/duckdbex-nif-2.17-aarch64-linux-gnu-${VERSION}.tar.gz"
 
       - name: Generate checksum.exs
         run: |
@@ -312,20 +311,20 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           git add -f checksum.exs
-          git commit -m "Add precompiled NIF checksums for ${{ inputs.version }}"
+          git commit -m "Add precompiled NIF checksums for ${VERSION}"
 
           git push origin HEAD:${{ github.ref_name }}
 
       - name: Tag checksum commit
         run: |
-          git tag "v${{ inputs.version }}"
-          git push origin "v${{ inputs.version }}"
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
 
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ inputs.version }}" \
-            --title "v${{ inputs.version }}" \
-            --notes "Precompiled NIF artifacts for v${{ inputs.version }}" \
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
+            --notes "Precompiled NIF artifacts for v${VERSION}" \
             precompiled-assets/*.tar.gz
