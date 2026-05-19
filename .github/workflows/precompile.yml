@@ -24,7 +24,7 @@ jobs:
 
       - name: Install system dependencies
         run: |
-          apk add --no-cache alpine-sdk git ccache
+          apk add --no-cache alpine-sdk git ccache python3
 
       - name: Setup Mix
         run: |
